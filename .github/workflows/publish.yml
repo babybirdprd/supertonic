@@ -155,6 +155,10 @@ jobs:
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2.0.0"
 
+      - name: Initialize Android project
+        working-directory: examples/tauri-app
+        run: cargo tauri android init
+
       - name: Build Android APK
         working-directory: examples/tauri-app
         run: cargo tauri android build
@@ -222,6 +226,10 @@ jobs:
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2.0.0"
+
+      - name: Initialize iOS project
+        working-directory: examples/tauri-app
+        run: cargo tauri ios init
 
       - name: Build iOS (unsigned)
         working-directory: examples/tauri-app
