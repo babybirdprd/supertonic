@@ -1,10 +1,10 @@
 use ndarray::Array3;
+use regex::Regex;
 use serde_json;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 use unicode_normalization::UnicodeNormalization;
-use regex::Regex;
 
 use crate::error::SupertonicError;
 
@@ -20,25 +20,22 @@ impl UnicodeProcessor {
     pub fn new<P: AsRef<Path>>(unicode_indexer_json_path: P) -> Result<Self, SupertonicError> {
         let file = File::open(unicode_indexer_json_path).map_err(SupertonicError::Io)?;
         let reader = BufReader::new(file);
-        let indexer: Vec<i64> = serde_json::from_reader(reader).map_err(SupertonicError::Serialization)?;
+        let indexer: Vec<i64> =
+            serde_json::from_reader(reader).map_err(SupertonicError::Serialization)?;
         Ok(UnicodeProcessor { indexer })
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, SupertonicError> {
-        let indexer: Vec<i64> = serde_json::from_slice(bytes).map_err(SupertonicError::Serialization)?;
+        let indexer: Vec<i64> =
+            serde_json::from_slice(bytes).map_err(SupertonicError::Serialization)?;
         Ok(UnicodeProcessor { indexer })
     }
 
     pub fn call(&self, text_list: &[String]) -> (Vec<Vec<i64>>, Array3<f32>) {
-        let processed_texts: Vec<String> = text_list
-            .iter()
-            .map(|t| preprocess_text(t))
-            .collect();
+        let processed_texts: Vec<String> = text_list.iter().map(|t| preprocess_text(t)).collect();
 
-        let text_ids_lengths: Vec<usize> = processed_texts
-            .iter()
-            .map(|t| t.chars().count())
-            .collect();
+        let text_ids_lengths: Vec<usize> =
+            processed_texts.iter().map(|t| t.chars().count()).collect();
 
         let max_len = *text_ids_lengths.iter().max().unwrap_or(&0);
 
@@ -71,24 +68,24 @@ pub fn preprocess_text(text: &str) -> String {
 
     // Replace various dashes and symbols
     let replacements = [
-        ("–", "-"),      // en dash
-        ("‑", "-"),      // non-breaking hyphen
-        ("—", "-"),      // em dash
-        ("¯", " "),      // macron
-        ("_", " "),      // underscore
-        ("\u{201C}", "\""),     // left double quote
-        ("\u{201D}", "\""),     // right double quote
-        ("\u{2018}", "'"),      // left single quote
-        ("\u{2019}", "'"),      // right single quote
-        ("´", "'"),      // acute accent
-        ("`", "'"),      // grave accent
-        ("[", " "),      // left bracket
-        ("]", " "),      // right bracket
-        ("|", " "),      // vertical bar
-        ("/", " "),      // slash
-        ("#", " "),      // hash
-        ("→", " "),      // right arrow
-        ("←", " "),      // left arrow
+        ("–", "-"),         // en dash
+        ("‑", "-"),         // non-breaking hyphen
+        ("—", "-"),         // em dash
+        ("¯", " "),         // macron
+        ("_", " "),         // underscore
+        ("\u{201C}", "\""), // left double quote
+        ("\u{201D}", "\""), // right double quote
+        ("\u{2018}", "'"),  // left single quote
+        ("\u{2019}", "'"),  // right single quote
+        ("´", "'"),         // acute accent
+        ("`", "'"),         // grave accent
+        ("[", " "),         // left bracket
+        ("]", " "),         // right bracket
+        ("|", " "),         // vertical bar
+        ("/", " "),         // slash
+        ("#", " "),         // hash
+        ("→", " "),         // right arrow
+        ("←", " "),         // left arrow
     ];
 
     for (from, to) in &replacements {
@@ -117,13 +114,34 @@ pub fn preprocess_text(text: &str) -> String {
     }
 
     // Fix spacing around punctuation
-    text = Regex::new(r" ,").unwrap().replace_all(&text, ",").to_string();
-    text = Regex::new(r" \.").unwrap().replace_all(&text, ".").to_string();
-    text = Regex::new(r" !").unwrap().replace_all(&text, "!").to_string();
-    text = Regex::new(r" \?").unwrap().replace_all(&text, "?").to_string();
-    text = Regex::new(r" ;").unwrap().replace_all(&text, ";").to_string();
-    text = Regex::new(r" :").unwrap().replace_all(&text, ":").to_string();
-    text = Regex::new(r" '").unwrap().replace_all(&text, "'").to_string();
+    text = Regex::new(r" ,")
+        .unwrap()
+        .replace_all(&text, ",")
+        .to_string();
+    text = Regex::new(r" \.")
+        .unwrap()
+        .replace_all(&text, ".")
+        .to_string();
+    text = Regex::new(r" !")
+        .unwrap()
+        .replace_all(&text, "!")
+        .to_string();
+    text = Regex::new(r" \?")
+        .unwrap()
+        .replace_all(&text, "?")
+        .to_string();
+    text = Regex::new(r" ;")
+        .unwrap()
+        .replace_all(&text, ";")
+        .to_string();
+    text = Regex::new(r" :")
+        .unwrap()
+        .replace_all(&text, ":")
+        .to_string();
+    text = Regex::new(r" '")
+        .unwrap()
+        .replace_all(&text, "'")
+        .to_string();
 
     // Remove duplicate quotes
     while text.contains("\"\"") {
@@ -137,12 +155,17 @@ pub fn preprocess_text(text: &str) -> String {
     }
 
     // Remove extra spaces
-    text = Regex::new(r"\s+").unwrap().replace_all(&text, " ").to_string();
+    text = Regex::new(r"\s+")
+        .unwrap()
+        .replace_all(&text, " ")
+        .to_string();
     text = text.trim().to_string();
 
     // If text doesn't end with punctuation, quotes, or closing brackets, add a period
     if !text.is_empty() {
-        let ends_with_punct = Regex::new(r#"[.!?;:,'"\u{201C}\u{201D}\u{2018}\u{2019})\]}…。」』】〉》›»]$"#).unwrap();
+        let ends_with_punct =
+            Regex::new(r#"[.!?;:,'"\u{201C}\u{201D}\u{2018}\u{2019})\]}…。」』】〉》›»]$"#)
+                .unwrap();
         if !ends_with_punct.is_match(&text) {
             text.push('.');
         }
@@ -180,9 +203,8 @@ pub fn get_text_mask(text_ids_lengths: &[usize]) -> Array3<f32> {
 const MAX_CHUNK_LENGTH: usize = 300;
 
 const ABBREVIATIONS: &[&str] = &[
-    "Dr.", "Mr.", "Mrs.", "Ms.", "Prof.", "Sr.", "Jr.",
-    "St.", "Ave.", "Rd.", "Blvd.", "Dept.", "Inc.", "Ltd.",
-    "Co.", "Corp.", "etc.", "vs.", "i.e.", "e.g.", "Ph.D.",
+    "Dr.", "Mr.", "Mrs.", "Ms.", "Prof.", "Sr.", "Jr.", "St.", "Ave.", "Rd.", "Blvd.", "Dept.",
+    "Inc.", "Ltd.", "Co.", "Corp.", "etc.", "vs.", "i.e.", "e.g.", "Ph.D.",
 ];
 
 pub fn chunk_text(text: &str, max_len: Option<usize>) -> Vec<String> {
@@ -328,7 +350,7 @@ fn split_sentences(text: &str) -> Vec<String> {
         // Check if this ends with an abbreviation
         let mut is_abbrev = false;
         for abbrev in ABBREVIATIONS {
-            let combined = format!("{}{}", before_punc.trim(), &text[m.start()..m.start()+1]);
+            let combined = format!("{}{}", before_punc.trim(), &text[m.start()..m.start() + 1]);
             if combined.ends_with(abbrev) {
                 is_abbrev = true;
                 break;

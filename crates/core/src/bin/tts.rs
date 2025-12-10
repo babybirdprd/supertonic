@@ -1,12 +1,12 @@
 use anyhow::Result;
 use clap::Parser;
-use std::path::PathBuf;
 use std::fs;
+use std::path::PathBuf;
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
 use supertonic_tts::{
-    load_text_to_speech, load_voice_style, timer, write_wav_file, sanitize_filename,
+    load_text_to_speech, load_voice_style, sanitize_filename, timer, write_wav_file,
 };
 
 #[derive(Parser, Debug)]
@@ -19,7 +19,11 @@ struct Args {
     use_gpu: bool,
 
     /// Path to ONNX model directory
-    #[arg(long, default_value = "assets/onnx", help = "Directory containing the ONNX models")]
+    #[arg(
+        long,
+        default_value = "assets/onnx",
+        help = "Directory containing the ONNX models"
+    )]
     onnx_dir: String,
 
     /// Number of denoising steps (Higher = better quality, slower)
@@ -56,8 +60,7 @@ fn main() -> Result<()> {
     let subscriber = FmtSubscriber::builder()
         .with_max_level(Level::INFO)
         .finish();
-    tracing::subscriber::set_global_default(subscriber)
-        .expect("setting default subscriber failed");
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     info!("=== Supertonic TTS Inference ===");
 
@@ -127,6 +130,6 @@ fn main() -> Result<()> {
     }
 
     info!("Synthesis completed successfully!");
-    
+
     Ok(())
 }

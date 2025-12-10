@@ -1,5 +1,5 @@
-use std::time::Instant;
 use anyhow::Result;
+use std::time::Instant;
 use tracing::info;
 
 pub fn timer<F, T>(name: &str, f: F) -> Result<T>
@@ -22,12 +22,6 @@ pub fn sanitize_filename(text: &str, max_len: usize) -> String {
     };
 
     text.chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() {
-                c
-            } else {
-                '_'
-            }
-        })
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
         .collect()
 }

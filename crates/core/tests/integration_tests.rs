@@ -1,5 +1,5 @@
-use supertonic_tts::{load_text_to_speech, load_voice_style};
 use std::path::PathBuf;
+use supertonic_tts::{load_text_to_speech, load_voice_style};
 
 #[test]
 fn test_load_components() {

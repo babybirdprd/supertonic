@@ -1,4 +1,4 @@
-use supertonic_tts::{preprocess_text, chunk_text, sanitize_filename};
+use supertonic_tts::{chunk_text, preprocess_text, sanitize_filename};
 
 #[test]
 fn test_text_preprocessing() {

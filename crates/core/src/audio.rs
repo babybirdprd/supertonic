@@ -1,6 +1,6 @@
-use hound::{WavWriter, WavSpec, SampleFormat};
-use std::path::Path;
 use crate::error::SupertonicError;
+use hound::{SampleFormat, WavSpec, WavWriter};
+use std::path::Path;
 
 // ============================================================================
 // WAV File I/O
@@ -24,11 +24,13 @@ pub fn write_wav_file<P: AsRef<Path>>(
     for &sample in audio_data {
         let clamped = sample.max(-1.0).min(1.0);
         let val = (clamped * 32767.0) as i16;
-        writer.write_sample(val)
+        writer
+            .write_sample(val)
             .map_err(|e| SupertonicError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
     }
 
-    writer.finalize()
+    writer
+        .finalize()
         .map_err(|e| SupertonicError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
     Ok(())
 }
