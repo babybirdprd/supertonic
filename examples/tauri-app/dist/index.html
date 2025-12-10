@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Supertonic TTS Demo</title>
+  <style>
+    :root {
+      --bg-primary: #0a0a0f;
+      --bg-secondary: #12121a;
+      --bg-tertiary: #1a1a24;
+      --accent-primary: #6366f1;
+      --accent-secondary: #8b5cf6;
+      --accent-glow: rgba(99, 102, 241, 0.3);
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --success: #22c55e;
+      --error: #ef4444;
+      --border: #2a2a3a;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 1.1rem;
+    }
+
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .status-badge.ready {
+      background: rgba(34, 197, 94, 0.1);
+      color: var(--success);
+    }
+
+    .status-badge.loading {
+      background: rgba(99, 102, 241, 0.1);
+      color: var(--accent-primary);
+    }
+
+    .status-badge.error {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--error);
+    }
+
+    .status-badge.pending {
+      background: rgba(148, 163, 184, 0.1);
+      color: var(--text-secondary);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.5rem;
+    }
+
+    input,
+    textarea,
+    select {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 1rem;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input:focus,
+    textarea:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+    }
+
+    button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px var(--accent-glow);
+    }
+
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--border);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .loading-spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid var(--border);
+      border-top-color: var(--accent-primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    .loading-text {
+      margin-top: 1rem;
+      color: var(--text-secondary);
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .voice-selector {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .voice-btn {
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      background: var(--bg-tertiary);
+      border: 2px solid var(--border);
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .voice-btn:hover {
+      border-color: var(--accent-primary);
+    }
+
+    .voice-btn.active {
+      border-color: var(--accent-primary);
+      background: rgba(99, 102, 241, 0.2);
+    }
+
+    .output-section {
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+
+    .output-label {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+
+    .log-container {
+      max-height: 150px;
+      overflow-y: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      line-height: 1.6;
+    }
+
+    .log-entry {
+      padding: 0.25rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+
+    .log-time {
+      color: var(--text-secondary);
+    }
+
+    .log-error {
+      color: var(--error);
+    }
+
+    .log-success {
+      color: var(--success);
+    }
+
+    .audio-player {
+      width: 100%;
+      margin-top: 1rem;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loadingText">Initializing TTS Engine...</div>
+  </div>
+
+  <div class="container">
+    <header>
+      <h1>🎙️ Supertonic TTS</h1>
+      <p class="subtitle">High-performance on-device Text-to-Speech</p>
+    </header>
+
+    <!-- Voice Selection -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🎤 Voice Selection</span>
+        <span id="engineStatus" class="status-badge pending">
+          <span class="status-dot"></span>
+          Initializing...
+        </span>
+      </div>
+      <div id="voiceSelector" class="voice-selector">
+        <!-- Voices populated dynamically -->
+      </div>
+    </div>
+
+    <!-- Text-to-Speech -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">💬 Text-to-Speech</span>
+      </div>
+
+      <div class="form-group">
+        <label for="textInput">Text to Synthesize</label>
+        <textarea id="textInput"
+          placeholder="Enter text to convert to speech...">Hello! This is a demonstration of the Supertonic text-to-speech engine. It can generate natural sounding speech from any text you provide.</textarea>
+      </div>
+
+      <div class="row">
+        <div class="form-group">
+          <label for="speed">Speed</label>
+          <input type="number" id="speed" value="1.0" min="0.5" max="2.0" step="0.1" />
+        </div>
+        <div class="form-group">
+          <label for="totalStep">Quality Steps</label>
+          <input type="number" id="totalStep" value="10" min="1" max="50" step="1" />
+        </div>
+        <div class="form-group">
+          <label for="silenceDuration">Silence (s)</label>
+          <input type="number" id="silenceDuration" value="0.2" min="0" max="2" step="0.1" />
+        </div>
+      </div>
+
+      <div class="button-row">
+        <button id="speakBtn" class="btn-primary" disabled>
+          🔊 Speak
+        </button>
+        <button id="saveWavBtn" class="btn-secondary" disabled>
+          💾 Save WAV
+        </button>
+      </div>
+    </div>
+
+    <!-- Output -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📊 Output</span>
+      </div>
+
+      <div class="output-section" style="margin-bottom: 1rem;">
+        <div class="output-label">Audio Player</div>
+        <audio id="audioPlayer" class="audio-player" controls style="display: none;"></audio>
+        <div id="audioPlaceholder" style="color: var(--text-secondary); font-size: 0.9rem;">
+          No audio generated yet. Select a voice and click Speak!
+        </div>
+      </div>
+
+      <div class="output-section">
+        <div class="output-label">Activity Log</div>
+        <div id="logContainer" class="log-container"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    let invoke;
+    let initialized = false;
+    let currentVoice = null;
+    let lastAudio = null;
+    let sampleRate = 22050;
+    let voices = [];
+
+    // DOM Elements
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const loadingText = document.getElementById('loadingText');
+    const engineStatus = document.getElementById('engineStatus');
+    const voiceSelector = document.getElementById('voiceSelector');
+    const speakBtn = document.getElementById('speakBtn');
+    const saveWavBtn = document.getElementById('saveWavBtn');
+    const audioPlayer = document.getElementById('audioPlayer');
+    const audioPlaceholder = document.getElementById('audioPlaceholder');
+
+    // Logging
+    function log(message, type = 'info') {
+      const container = document.getElementById('logContainer');
+      const time = new Date().toLocaleTimeString();
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.innerHTML = `<span class="log-time">[${time}]</span> <span class="${type === 'error' ? 'log-error' : type === 'success' ? 'log-success' : ''}">${message}</span>`;
+      container.insertBefore(entry, container.firstChild);
+    }
+
+    function updateStatus(status, type) {
+      engineStatus.className = `status-badge ${type}`;
+      engineStatus.innerHTML = `<span class="status-dot"></span>${status}`;
+    }
+
+    function updateButtons() {
+      speakBtn.disabled = !initialized || !currentVoice;
+      saveWavBtn.disabled = !lastAudio;
+    }
+
+    function showLoading(text) {
+      loadingText.textContent = text;
+      loadingOverlay.classList.remove('hidden');
+    }
+
+    function hideLoading() {
+      loadingOverlay.classList.add('hidden');
+    }
+
+    function renderVoices() {
+      voiceSelector.innerHTML = '';
+      voices.forEach(voice => {
+        const btn = document.createElement('button');
+        btn.className = 'voice-btn' + (currentVoice === voice.id ? ' active' : '');
+        btn.textContent = voice.name;
+        btn.onclick = () => selectVoice(voice.id);
+        voiceSelector.appendChild(btn);
+      });
+    }
+
+    async function selectVoice(voiceId) {
+      try {
+        log(`Selecting voice: ${voiceId}...`);
+        await invoke('plugin:supertonic|set_voice', { voiceId });
+        currentVoice = voiceId;
+        log(`Voice "${voiceId}" selected`, 'success');
+        renderVoices();
+        updateButtons();
+      } catch (e) {
+        log(`Failed to select voice: ${e}`, 'error');
+      }
+    }
+
+    function playAudio(audioData, sr) {
+      const numChannels = 1;
+      const bitsPerSample = 16;
+      const byteRate = sr * numChannels * bitsPerSample / 8;
+      const blockAlign = numChannels * bitsPerSample / 8;
+      const dataSize = audioData.length * 2;
+      const buffer = new ArrayBuffer(44 + dataSize);
+      const view = new DataView(buffer);
+
+      // WAV header
+      const writeString = (offset, string) => {
+        for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
+      };
+      writeString(0, 'RIFF');
+      view.setUint32(4, 36 + dataSize, true);
+      writeString(8, 'WAVE');
+      writeString(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, numChannels, true);
+      view.setUint32(24, sr, true);
+      view.setUint32(28, byteRate, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, bitsPerSample, true);
+      writeString(36, 'data');
+      view.setUint32(40, dataSize, true);
+
+      let offset = 44;
+      for (let i = 0; i < audioData.length; i++) {
+        const sample = Math.max(-1, Math.min(1, audioData[i]));
+        view.setInt16(offset, sample * 0x7FFF, true);
+        offset += 2;
+      }
+
+      const blob = new Blob([buffer], { type: 'audio/wav' });
+      audioPlayer.src = URL.createObjectURL(blob);
+      audioPlayer.style.display = 'block';
+      audioPlaceholder.style.display = 'none';
+      audioPlayer.play();
+    }
+
+    // Initialize
+    async function init() {
+      try {
+        const { invoke: tauriInvoke } = await import('https://esm.sh/@tauri-apps/api@2/core');
+        invoke = tauriInvoke;
+        log('Tauri API loaded');
+      } catch (e) {
+        hideLoading();
+        updateStatus('Error', 'error');
+        log('Tauri API not available - running in browser mode', 'error');
+        return;
+      }
+
+      try {
+        showLoading('Loading TTS models (this may take a moment)...');
+        const result = await invoke('plugin:supertonic|initialize', {});
+
+        initialized = true;
+        sampleRate = result.sample_rate;
+        voices = result.available_voices;
+
+        log(`Engine initialized! Sample rate: ${sampleRate}Hz`, 'success');
+        log(`Found ${voices.length} voice(s): ${voices.map(v => v.id).join(', ')}`, 'success');
+
+        // Auto-select first voice
+        if (voices.length > 0) {
+          await selectVoice(voices[0].id);
+        }
+
+        updateStatus('Ready', 'ready');
+        hideLoading();
+        updateButtons();
+        renderVoices();
+
+      } catch (e) {
+        hideLoading();
+        updateStatus('Error', 'error');
+        log(`Failed to initialize: ${e}`, 'error');
+      }
+    }
+
+    // Event Handlers
+    speakBtn.addEventListener('click', async () => {
+      const text = document.getElementById('textInput').value;
+      if (!text) {
+        log('Please enter text to speak', 'error');
+        return;
+      }
+
+      const speed = parseFloat(document.getElementById('speed').value) || 1.0;
+      const totalStep = parseInt(document.getElementById('totalStep').value) || 10;
+      const silenceDuration = parseFloat(document.getElementById('silenceDuration').value) || 0.2;
+
+      speakBtn.disabled = true;
+      speakBtn.innerHTML = '<span class="loading-spinner" style="width:16px;height:16px;border-width:2px"></span> Generating...';
+      log(`Generating speech (speed=${speed}, steps=${totalStep})...`);
+
+      try {
+        const start = performance.now();
+        const result = await invoke('plugin:supertonic|speak', {
+          text,
+          speed,
+          totalStep,
+          silenceDuration
+        });
+        const elapsed = ((performance.now() - start) / 1000).toFixed(2);
+
+        lastAudio = result.audio;
+        log(`Generated ${result.duration.toFixed(2)}s of audio in ${elapsed}s`, 'success');
+        playAudio(result.audio, result.sample_rate);
+        updateButtons();
+      } catch (e) {
+        log(`Failed to speak: ${e}`, 'error');
+      } finally {
+        speakBtn.disabled = false;
+        speakBtn.innerHTML = '🔊 Speak';
+        updateButtons();
+      }
+    });
+
+    saveWavBtn.addEventListener('click', async () => {
+      if (!lastAudio) {
+        log('No audio to save', 'error');
+        return;
+      }
+
+      const outputPath = prompt('Enter output path:', 'output.wav');
+      if (!outputPath) return;
+
+      try {
+        await invoke('plugin:supertonic|save_wav', { audio: lastAudio, outputPath });
+        log(`Saved to ${outputPath}`, 'success');
+      } catch (e) {
+        log(`Failed to save: ${e}`, 'error');
+      }
+    });
+
+    // Start initialization
+    init();
+  </script>
+</body>
+
+</html>

@@ -6,6 +6,14 @@
     "main"
   ],
   "permissions": [
-    "core:default"
+    "core:default",
+    "supertonic:allow-initialize",
+    "supertonic:allow-set-voice",
+    "supertonic:allow-load-engine",
+    "supertonic:allow-load-voice",
+    "supertonic:allow-speak",
+    "supertonic:allow-speak-batch",
+    "supertonic:allow-get-engine-info",
+    "supertonic:allow-save-wav"
   ]
 }

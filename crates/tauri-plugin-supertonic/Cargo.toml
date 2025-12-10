@@ -2,6 +2,7 @@
 name = "tauri-plugin-supertonic"
 version = "0.1.0"
 edition = "2021"
+links = "tauri-plugin-supertonic"
 
 [dependencies]
 tauri = { version = "2.0.0", features = ["wry"] }
@@ -12,4 +13,4 @@ thiserror = "1.0"
 base64 = "0.21"
 
 [build-dependencies]
-tauri-plugin = "2.0.0"
+tauri-plugin = { version = "2.0.0", features = ["build"] }

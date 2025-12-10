@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-load-engine"
+description = "Enables the load_engine command without any pre-configured scope."
+commands.allow = ["load_engine"]
+
+[[permission]]
+identifier = "deny-load-engine"
+description = "Denies the load_engine command without any pre-configured scope."
+commands.deny = ["load_engine"]

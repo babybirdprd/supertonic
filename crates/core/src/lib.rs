@@ -1,12 +1,15 @@
-pub mod config;
 pub mod audio;
-pub mod text;
-pub mod model;
-pub mod utils;
+pub mod config;
 pub mod error;
+pub mod model;
+pub mod text;
+pub mod utils;
 
-pub use config::{Config, AEConfig, TTLConfig, load_cfgs};
 pub use audio::write_wav_file;
-pub use text::{UnicodeProcessor, chunk_text, preprocess_text};
-pub use model::{TextToSpeech, Style, load_voice_style, load_text_to_speech};
-pub use utils::{timer, sanitize_filename};
+pub use config::{load_cfgs, AEConfig, Config, TTLConfig};
+pub use model::{
+    load_text_to_speech, load_text_to_speech_from_memory, load_voice_style,
+    load_voice_style_from_bytes, ModelBytes, Style, TextToSpeech,
+};
+pub use text::{chunk_text, preprocess_text, UnicodeProcessor};
+pub use utils::{sanitize_filename, timer};

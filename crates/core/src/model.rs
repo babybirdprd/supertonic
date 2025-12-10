@@ -1,18 +1,13 @@
 use ndarray::{Array, Array3};
+use ort::{session::Session, value::Value};
+use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
 use serde_json;
-use std::fs::File;
-use std::io::BufReader;
-use rand_distr::{Distribution, Normal};
-use ort::{
-    session::Session,
-    value::Value,
-};
 use tracing::info;
 
 use crate::config::Config;
 use crate::error::SupertonicError;
-use crate::text::{UnicodeProcessor, chunk_text, length_to_mask};
+use crate::text::{chunk_text, length_to_mask, UnicodeProcessor};
 
 // ============================================================================
 // Voice Style Data Structure
@@ -35,86 +30,6 @@ pub struct StyleComponent {
 pub struct Style {
     pub ttl: Array3<f32>,
     pub dp: Array3<f32>,
-}
-
-/// Load voice style from JSON files
-pub fn load_voice_style(voice_style_paths: &[String], verbose: bool) -> Result<Style, SupertonicError> {
-    let bsz = voice_style_paths.len();
-    if bsz == 0 {
-        return Err(SupertonicError::Validation("No voice style paths provided".to_string()));
-    }
-
-    // Read first file to get dimensions
-    let first_file = File::open(&voice_style_paths[0])
-        .map_err(SupertonicError::Io)?;
-    let first_reader = BufReader::new(first_file);
-    let first_data: VoiceStyleData = serde_json::from_reader(first_reader)
-        .map_err(SupertonicError::Serialization)?;
-
-    let ttl_dims = &first_data.style_ttl.dims;
-    let dp_dims = &first_data.style_dp.dims;
-
-    let ttl_dim1 = ttl_dims[1];
-    let ttl_dim2 = ttl_dims[2];
-    let dp_dim1 = dp_dims[1];
-    let dp_dim2 = dp_dims[2];
-
-    // Pre-allocate arrays with full batch size
-    let ttl_size = bsz * ttl_dim1 * ttl_dim2;
-    let dp_size = bsz * dp_dim1 * dp_dim2;
-    let mut ttl_flat = vec![0.0f32; ttl_size];
-    let mut dp_flat = vec![0.0f32; dp_size];
-
-    // Fill in the data
-    for (i, path) in voice_style_paths.iter().enumerate() {
-        let file = File::open(path).map_err(SupertonicError::Io)?;
-        let reader = BufReader::new(file);
-        let data: VoiceStyleData = serde_json::from_reader(reader).map_err(SupertonicError::Serialization)?;
-
-        // Flatten TTL data
-        let ttl_offset = i * ttl_dim1 * ttl_dim2;
-        let mut idx = 0;
-        for batch in &data.style_ttl.data {
-            for row in batch {
-                for &val in row {
-                    ttl_flat[ttl_offset + idx] = val;
-                    idx += 1;
-                }
-            }
-        }
-
-        // Flatten DP data
-        let dp_offset = i * dp_dim1 * dp_dim2;
-        idx = 0;
-        for batch in &data.style_dp.data {
-            for row in batch {
-                for &val in row {
-                    dp_flat[dp_offset + idx] = val;
-                    idx += 1;
-                }
-            }
-        }
-    }
-
-    let ttl_style = Array3::from_shape_vec((bsz, ttl_dim1, ttl_dim2), ttl_flat)
-        .map_err(|_e| SupertonicError::ShapeMismatch {
-            expected: vec![bsz, ttl_dim1, ttl_dim2],
-            got: vec![], // difficult to get actual shape from ShapeError easily without more work, but this is a start
-        })?;
-    let dp_style = Array3::from_shape_vec((bsz, dp_dim1, dp_dim2), dp_flat)
-        .map_err(|_e| SupertonicError::ShapeMismatch {
-             expected: vec![bsz, dp_dim1, dp_dim2],
-             got: vec![],
-        })?;
-
-    if verbose {
-        info!("Loaded {} voice styles", bsz);
-    }
-
-    Ok(Style {
-        ttl: ttl_style,
-        dp: dp_style,
-    })
 }
 
 // ============================================================================
@@ -170,11 +85,12 @@ impl TextToSpeech {
             for row in &text_ids {
                 flat.extend_from_slice(row);
             }
-            Array::from_shape_vec(text_ids_shape, flat)
-                .map_err(|_e| SupertonicError::ShapeMismatch {
+            Array::from_shape_vec(text_ids_shape, flat).map_err(|_e| {
+                SupertonicError::ShapeMismatch {
                     expected: vec![bsz, text_ids[0].len()],
                     got: vec![],
-                })?
+                }
+            })?
         };
 
         let text_ids_value = Value::from_array(text_ids_array)?;
@@ -182,7 +98,7 @@ impl TextToSpeech {
         let style_dp_value = Value::from_array(style.dp.clone())?;
 
         // Predict duration
-        let dp_outputs = self.dp_ort.run(ort::inputs!{
+        let dp_outputs = self.dp_ort.run(ort::inputs! {
             "text_ids" => &text_ids_value,
             "style_dp" => &style_dp_value,
             "text_mask" => &text_mask_value
@@ -198,18 +114,28 @@ impl TextToSpeech {
 
         // Encode text
         let style_ttl_value = Value::from_array(style.ttl.clone())?;
-        let text_enc_outputs = self.text_enc_ort.run(ort::inputs!{
+        let text_enc_outputs = self.text_enc_ort.run(ort::inputs! {
             "text_ids" => &text_ids_value,
             "style_ttl" => &style_ttl_value,
             "text_mask" => &text_mask_value
         })?;
 
-        let (text_emb_shape, text_emb_data) = text_enc_outputs["text_emb"].try_extract_tensor::<f32>()?;
+        let (text_emb_shape, text_emb_data) =
+            text_enc_outputs["text_emb"].try_extract_tensor::<f32>()?;
         let text_emb = Array3::from_shape_vec(
-            (text_emb_shape[0] as usize, text_emb_shape[1] as usize, text_emb_shape[2] as usize),
-            text_emb_data.to_vec()
-        ).map_err(|_e| SupertonicError::ShapeMismatch {
-            expected: vec![text_emb_shape[0] as usize, text_emb_shape[1] as usize, text_emb_shape[2] as usize],
+            (
+                text_emb_shape[0] as usize,
+                text_emb_shape[1] as usize,
+                text_emb_shape[2] as usize,
+            ),
+            text_emb_data.to_vec(),
+        )
+        .map_err(|_e| SupertonicError::ShapeMismatch {
+            expected: vec![
+                text_emb_shape[0] as usize,
+                text_emb_shape[1] as usize,
+                text_emb_shape[2] as usize,
+            ],
             got: vec![],
         })?;
 
@@ -236,7 +162,7 @@ impl TextToSpeech {
             let current_step_value = Value::from_array(current_step_array)?;
             let total_step_value = Value::from_array(total_step_array.clone())?;
 
-            let vector_est_outputs = self.vector_est_ort.run(ort::inputs!{
+            let vector_est_outputs = self.vector_est_ort.run(ort::inputs! {
                 "noisy_latent" => &xt_value,
                 "text_emb" => &text_emb_value,
                 "style_ttl" => &style_ttl_value,
@@ -246,19 +172,29 @@ impl TextToSpeech {
                 "total_step" => &total_step_value
             })?;
 
-            let (denoised_shape, denoised_data) = vector_est_outputs["denoised_latent"].try_extract_tensor::<f32>()?;
+            let (denoised_shape, denoised_data) =
+                vector_est_outputs["denoised_latent"].try_extract_tensor::<f32>()?;
             xt = Array3::from_shape_vec(
-                (denoised_shape[0] as usize, denoised_shape[1] as usize, denoised_shape[2] as usize),
-                denoised_data.to_vec()
-            ).map_err(|_e| SupertonicError::ShapeMismatch {
-                expected: vec![denoised_shape[0] as usize, denoised_shape[1] as usize, denoised_shape[2] as usize],
+                (
+                    denoised_shape[0] as usize,
+                    denoised_shape[1] as usize,
+                    denoised_shape[2] as usize,
+                ),
+                denoised_data.to_vec(),
+            )
+            .map_err(|_e| SupertonicError::ShapeMismatch {
+                expected: vec![
+                    denoised_shape[0] as usize,
+                    denoised_shape[1] as usize,
+                    denoised_shape[2] as usize,
+                ],
                 got: vec![],
             })?;
         }
 
         // Generate waveform
         let final_latent_value = Value::from_array(xt)?;
-        let vocoder_outputs = self.vocoder_ort.run(ort::inputs!{
+        let vocoder_outputs = self.vocoder_ort.run(ort::inputs! {
             "latent" => &final_latent_value
         })?;
 
@@ -379,35 +315,21 @@ pub fn sample_noisy_latent(
     (noisy_latent, latent_mask)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VoiceStyleData {
-    pub style_ttl: StyleComponent,
-    pub style_dp: StyleComponent,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StyleComponent {
-    pub data: Vec<Vec<Vec<f32>>>,
-    pub dims: Vec<usize>,
-    #[serde(rename = "type")]
-    pub dtype: String,
-}
-
-pub struct Style {
-    pub ttl: Array3<f32>,
-    pub dp: Array3<f32>,
-}
-
 /// Load voice style from bytes
-pub fn load_voice_style_from_bytes(bytes_list: &[&[u8]], verbose: bool) -> Result<Style, SupertonicError> {
+pub fn load_voice_style_from_bytes(
+    bytes_list: &[&[u8]],
+    verbose: bool,
+) -> Result<Style, SupertonicError> {
     let bsz = bytes_list.len();
     if bsz == 0 {
-        return Err(SupertonicError::Validation("No voice style bytes provided".to_string()));
+        return Err(SupertonicError::Validation(
+            "No voice style bytes provided".to_string(),
+        ));
     }
 
     // Read first file to get dimensions
-    let first_data: VoiceStyleData = serde_json::from_slice(bytes_list[0])
-        .map_err(SupertonicError::Serialization)?;
+    let first_data: VoiceStyleData =
+        serde_json::from_slice(bytes_list[0]).map_err(SupertonicError::Serialization)?;
 
     let ttl_dims = &first_data.style_ttl.dims;
     let dp_dims = &first_data.style_dp.dims;
@@ -425,7 +347,8 @@ pub fn load_voice_style_from_bytes(bytes_list: &[&[u8]], verbose: bool) -> Resul
 
     // Fill in the data
     for (i, bytes) in bytes_list.iter().enumerate() {
-        let data: VoiceStyleData = serde_json::from_slice(bytes).map_err(SupertonicError::Serialization)?;
+        let data: VoiceStyleData =
+            serde_json::from_slice(bytes).map_err(SupertonicError::Serialization)?;
 
         // Flatten TTL data
         let ttl_offset = i * ttl_dim1 * ttl_dim2;
@@ -452,16 +375,18 @@ pub fn load_voice_style_from_bytes(bytes_list: &[&[u8]], verbose: bool) -> Resul
         }
     }
 
-    let ttl_style = Array3::from_shape_vec((bsz, ttl_dim1, ttl_dim2), ttl_flat)
-        .map_err(|_e| SupertonicError::ShapeMismatch {
+    let ttl_style = Array3::from_shape_vec((bsz, ttl_dim1, ttl_dim2), ttl_flat).map_err(|_e| {
+        SupertonicError::ShapeMismatch {
             expected: vec![bsz, ttl_dim1, ttl_dim2],
             got: vec![], // difficult to get actual shape from ShapeError easily without more work, but this is a start
-        })?;
-    let dp_style = Array3::from_shape_vec((bsz, dp_dim1, dp_dim2), dp_flat)
-        .map_err(|_e| SupertonicError::ShapeMismatch {
-             expected: vec![bsz, dp_dim1, dp_dim2],
-             got: vec![],
-        })?;
+        }
+    })?;
+    let dp_style = Array3::from_shape_vec((bsz, dp_dim1, dp_dim2), dp_flat).map_err(|_e| {
+        SupertonicError::ShapeMismatch {
+            expected: vec![bsz, dp_dim1, dp_dim2],
+            got: vec![],
+        }
+    })?;
 
     if verbose {
         info!("Loaded {} voice styles", bsz);
@@ -474,7 +399,10 @@ pub fn load_voice_style_from_bytes(bytes_list: &[&[u8]], verbose: bool) -> Resul
 }
 
 /// Load voice style from JSON files
-pub fn load_voice_style(voice_style_paths: &[String], verbose: bool) -> Result<Style, SupertonicError> {
+pub fn load_voice_style(
+    voice_style_paths: &[String],
+    verbose: bool,
+) -> Result<Style, SupertonicError> {
     let mut bytes_list = Vec::new();
     let mut file_contents = Vec::new(); // Keep contents alive
     for path in voice_style_paths {
@@ -499,22 +427,24 @@ pub struct ModelBytes<'a> {
 }
 
 /// Load TTS components from memory
-pub fn load_text_to_speech_from_memory(models: ModelBytes, use_gpu: bool) -> Result<TextToSpeech, SupertonicError> {
+pub fn load_text_to_speech_from_memory(
+    models: ModelBytes,
+    use_gpu: bool,
+) -> Result<TextToSpeech, SupertonicError> {
     if use_gpu {
-        return Err(SupertonicError::Config("GPU mode is not supported yet".to_string()));
+        return Err(SupertonicError::Config(
+            "GPU mode is not supported yet".to_string(),
+        ));
     }
     info!("Using CPU for inference");
 
-    let cfgs = crate::config::load_cfgs_from_bytes(models.config).map_err(|e| SupertonicError::Config(e.to_string()))?;
+    let cfgs = crate::config::load_cfgs_from_bytes(models.config)
+        .map_err(|e| SupertonicError::Config(e.to_string()))?;
 
-    let dp_ort = Session::builder()?
-        .commit_from_memory(models.duration_predictor)?;
-    let text_enc_ort = Session::builder()?
-        .commit_from_memory(models.text_encoder)?;
-    let vector_est_ort = Session::builder()?
-        .commit_from_memory(models.vector_estimator)?;
-    let vocoder_ort = Session::builder()?
-        .commit_from_memory(models.vocoder)?;
+    let dp_ort = Session::builder()?.commit_from_memory(models.duration_predictor)?;
+    let text_enc_ort = Session::builder()?.commit_from_memory(models.text_encoder)?;
+    let vector_est_ort = Session::builder()?.commit_from_memory(models.vector_estimator)?;
+    let vocoder_ort = Session::builder()?.commit_from_memory(models.vocoder)?;
 
     let text_processor = UnicodeProcessor::from_bytes(models.unicode_indexer)
         .map_err(|e| SupertonicError::TextProcessing(e.to_string()))?;
@@ -545,12 +475,15 @@ pub fn load_text_to_speech(onnx_dir: &str, use_gpu: bool) -> Result<TextToSpeech
     let vocoder = std::fs::read(vocoder_path).map_err(SupertonicError::Io)?;
     let unicode_indexer = std::fs::read(unicode_indexer_path).map_err(SupertonicError::Io)?;
 
-    load_text_to_speech_from_memory(ModelBytes {
-        config: &config,
-        duration_predictor: &dp,
-        text_encoder: &text_enc,
-        vector_estimator: &vector_est,
-        vocoder: &vocoder,
-        unicode_indexer: &unicode_indexer,
-    }, use_gpu)
+    load_text_to_speech_from_memory(
+        ModelBytes {
+            config: &config,
+            duration_predictor: &dp,
+            text_encoder: &text_enc,
+            vector_estimator: &vector_est,
+            vocoder: &vocoder,
+            unicode_indexer: &unicode_indexer,
+        },
+        use_gpu,
+    )
 }

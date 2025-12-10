@@ -1,5 +1,7 @@
 [workspace]
 members = [
-  "crates/core", "crates/tauri-plugin-supertonic",
+  "crates/core",
+  "crates/tauri-plugin-supertonic",
+  "examples/tauri-app/src-tauri",
 ]
 resolver = "2"
