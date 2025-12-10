@@ -1,0 +1,237 @@
+name: "Publish Release"
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+env:
+  HF_MODEL_REPO: "Supertone/supertonic"
+
+jobs:
+  publish-tauri:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "macos-latest"
+            args: "--target aarch64-apple-darwin"
+          - platform: "macos-latest"
+            args: "--target x86_64-apple-darwin"
+          - platform: "ubuntu-22.04"
+            args: ""
+          - platform: "windows-latest"
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download ONNX models from HuggingFace
+        shell: bash
+        run: |
+          pip install huggingface_hub
+          python -c "
+          from huggingface_hub import hf_hub_download
+          import os
+          
+          repo_id = '${{ env.HF_MODEL_REPO }}'
+          files = [
+              'onnx/duration_predictor.onnx',
+              'onnx/text_encoder.onnx',
+              'onnx/vector_estimator.onnx',
+              'onnx/vocoder.onnx',
+              'onnx/unicode_indexer.json',
+              'onnx/tts.json',
+              'voice_styles/M1.json',
+              'voice_styles/M2.json',
+              'voice_styles/F1.json',
+              'voice_styles/F2.json',
+          ]
+          
+          for f in files:
+              local_dir = 'assets'
+              os.makedirs(os.path.join(local_dir, os.path.dirname(f)), exist_ok=True)
+              hf_hub_download(repo_id=repo_id, filename=f, local_dir=local_dir)
+          "
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./examples/tauri-app/src-tauri -> target"
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Build Tauri App
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Supertonic Demo v__VERSION__"
+          releaseBody: "See the assets below to download the installer for your platform."
+          releaseDraft: true
+          prerelease: false
+          projectPath: examples/tauri-app
+          args: ${{ matrix.args }}
+
+  publish-android:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download ONNX models from HuggingFace
+        run: |
+          pip install huggingface_hub
+          python -c "
+          from huggingface_hub import hf_hub_download
+          import os
+          
+          repo_id = '${{ env.HF_MODEL_REPO }}'
+          files = [
+              'onnx/duration_predictor.onnx',
+              'onnx/text_encoder.onnx',
+              'onnx/vector_estimator.onnx',
+              'onnx/vocoder.onnx',
+              'onnx/unicode_indexer.json',
+              'onnx/tts.json',
+              'voice_styles/M1.json',
+              'voice_styles/M2.json',
+              'voice_styles/F1.json',
+              'voice_styles/F2.json',
+          ]
+          
+          for f in files:
+              local_dir = 'assets'
+              os.makedirs(os.path.join(local_dir, os.path.dirname(f)), exist_ok=True)
+              hf_hub_download(repo_id=repo_id, filename=f, local_dir=local_dir)
+          "
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./examples/tauri-app/src-tauri -> target"
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2.0.0"
+
+      - name: Build Android APK
+        working-directory: examples/tauri-app
+        run: cargo tauri android build --apk
+        env:
+          NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+
+      - name: Upload Android APK
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          files: |
+            examples/tauri-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-ios:
+    permissions:
+      contents: write
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download ONNX models from HuggingFace
+        run: |
+          pip install huggingface_hub
+          python -c "
+          from huggingface_hub import hf_hub_download
+          import os
+          
+          repo_id = '${{ env.HF_MODEL_REPO }}'
+          files = [
+              'onnx/duration_predictor.onnx',
+              'onnx/text_encoder.onnx',
+              'onnx/vector_estimator.onnx',
+              'onnx/vocoder.onnx',
+              'onnx/unicode_indexer.json',
+              'onnx/tts.json',
+              'voice_styles/M1.json',
+              'voice_styles/M2.json',
+              'voice_styles/F1.json',
+              'voice_styles/F2.json',
+          ]
+          
+          for f in files:
+              local_dir = 'assets'
+              os.makedirs(os.path.join(local_dir, os.path.dirname(f)), exist_ok=True)
+              hf_hub_download(repo_id=repo_id, filename=f, local_dir=local_dir)
+          "
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: aarch64-apple-ios,x86_64-apple-ios
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./examples/tauri-app/src-tauri -> target"
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2.0.0"
+
+      - name: Build iOS (unsigned)
+        working-directory: examples/tauri-app
+        run: cargo tauri ios build
+
+      - name: Upload iOS App
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          files: |
+            examples/tauri-app/src-tauri/gen/apple/build/**/*.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

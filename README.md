@@ -321,9 +321,20 @@ Core dependencies:
 
 ---
 
+## 🤖 Model Attribution
+
+The ONNX models used by Supertonic are provided by [Supertone](https://huggingface.co/Supertone/supertonic) on Hugging Face and are licensed under the **OpenRAIL-M License**.
+
+> [!NOTE]
+> The OpenRAIL-M license permits use of the models for research and commercial purposes with certain responsible AI restrictions. See the [full license](https://huggingface.co/Supertone/supertonic) for details.
+
+---
+
 ## 📄 License
 
-[MIT](LICENSE) or [Apache-2.0](LICENSE-APACHE), at your option.
+**Code**: [MIT](LICENSE) or [Apache-2.0](LICENSE-APACHE), at your option.
+
+**Models**: OpenRAIL-M (see [Hugging Face](https://huggingface.co/Supertone/supertonic) for details).
 
 ---
 
