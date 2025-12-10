@@ -157,7 +157,7 @@ jobs:
 
       - name: Build Android APK
         working-directory: examples/tauri-app
-        run: cargo tauri android build --apk
+        run: cargo tauri android build
         env:
           NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
 
