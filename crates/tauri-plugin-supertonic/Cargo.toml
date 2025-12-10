@@ -4,9 +4,14 @@ version = "0.1.0"
 edition = "2021"
 links = "tauri-plugin-supertonic"
 
+[features]
+default = ["desktop"]
+desktop = ["supertonic-tts/desktop"]
+android = ["supertonic-tts/android"]
+
 [dependencies]
 tauri = { version = "2.0.0", features = ["wry"] }
-supertonic-tts = { path = "../core", package = "supertonic-tts" }
+supertonic-tts = { path = "../core", package = "supertonic-tts", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
@@ -14,3 +19,4 @@ base64 = "0.21"
 
 [build-dependencies]
 tauri-plugin = { version = "2.0.0", features = ["build"] }
+

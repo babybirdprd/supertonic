@@ -164,9 +164,11 @@ jobs:
 
       - name: Build Android APK
         working-directory: examples/tauri-app
-        run: cargo tauri android build
+        run: cargo tauri android build -- --no-default-features --features android
         env:
           NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+          ORT_LIB_LOCATION: ${{ github.workspace }}/examples/tauri-app/src-tauri/gen/android/app/src/main/jniLibs
+          ORT_PREFER_DYNAMIC_LINK: 1
 
       - name: Upload Android APK
         uses: softprops/action-gh-release@v1
