@@ -159,6 +159,9 @@ jobs:
         working-directory: examples/tauri-app
         run: cargo tauri android init
 
+      - name: Setup ONNX Runtime for Android
+        run: bash setup_android.sh
+
       - name: Build Android APK
         working-directory: examples/tauri-app
         run: cargo tauri android build
